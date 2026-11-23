@@ -1,0 +1,16 @@
+{
+  "name": "quota",
+  "version": "0.1.0",
+  "description": "Show usage and limits for Claude, Codex and Cursor subscriptions",
+  "type": "module",
+  "bin": { "quota": "src/index.ts" },
+  "scripts": {
+    "start": "bun src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "bun build src/index.ts --compile --outfile dist/quota"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.3",
+    "typescript": "5.9.3"
+  }
+}
