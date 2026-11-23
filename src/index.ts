@@ -29,7 +29,7 @@ Config: ${CONFIG_PATH}
   {
     "claude": [
       { "label": "Work",     "configDir": "~/.claude" },
-      { "label": "Personal", "configDir": "~/.claude_ns1" }
+      { "label": "Personal", "configDir": "~/.claude_personal" }
     ],
     "codex":  { "label": "Codex" },
     "cursor": { "label": "Cursor" }
