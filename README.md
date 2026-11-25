@@ -1,28 +1,28 @@
 # quota
 
-A small Bun CLI that shows how much of your AI coding subscriptions you've used: Claude (one or more accounts), Codex and Cursor. One command, one screen, reset times included.
+A small Bun CLI that shows how much of your AI coding subscriptions you've used: Claude (one or more accounts), Codex and Cursor. One command, one screen, reset times and pace included.
 
 ```
 Claude · Work  Team 5x · you@work.example
-  Session (5h)      ████████████░░░░░░░░   60%  resets in 1h 15m (17:59)
-  Weekly            █████░░░░░░░░░░░░░░░   27%  resets in 3d 15h (Fri 08:00)
-  Weekly · Fable    ███░░░░░░░░░░░░░░░░░   17%  resets in 3d 15h (Fri 08:00)
+  Session (5h)      ██████████████████░░   88%  ▲  above pace       full in ~31m (16:31) · resets 17:15
+  Weekly            ████░░░░░░░░░░░░░░░░   22%  ▼  below pace       resets in 4d 3h (Sun 19:00)
+  Weekly · Fable    ██████████████░░░░░░   71%  ▲▲ well above pace  full in ~1d 4h (Thu 20:10) · resets Sun 19:00
 
 Claude · Personal  Max 5x · you@home.example
-  Session (5h)      ████████████████████  100%  resets in 5m (16:50)
-  Weekly            ███░░░░░░░░░░░░░░░░░   14%  resets in 6d 11h (Mon 04:00)
+  Session (5h)      ████████████████████  100%  ■  limit reached    resets in 52m (16:52)
+  Weekly            █████████████░░░░░░░   66%  ●  on pace          resets in 2d 6h (Fri 22:00)
   Extra usage off (out of credits): €0.00 / €42.50
 
 Codex  Pro Lite · you@home.example
-  Weekly            ████████████████████  100%  resets in 1d 7h (Wed 00:24)
+  Session (5h)      █░░░░░░░░░░░░░░░░░░░    4%  ·  too early        resets in 4h 50m (20:50)
+  Weekly            █░░░░░░░░░░░░░░░░░░░    3%  ▼▼ well below pace  resets in 6d 1h (Tue 17:00)
   1 rate-limit reset available (use from Codex)
 
 Cursor  Pro · you@home.example
-  Included (total)  ████████████████████  100%  $20.00 / $20.00  resets in 3d 6h (Thu 23:05)
-  Auto + Composer   ████████████████████  100%  resets in 3d 6h (Thu 23:05)
-  API models        ████████████████████  100%  resets in 3d 6h (Thu 23:05)
+  Included (total)  █████████████░░░░░░░   64%  ●  on pace          $12.80 / $20.00  resets in 12d 0h (7 Dec 16:00)
+  Auto + Composer   ████████░░░░░░░░░░░░   41%  ▼  below pace       resets in 12d 0h (7 Dec 16:00)
+  API models        ██████████████████░░   92%  ▲▲ well above pace  full in ~1d 13h (Fri 05:30) · resets 7 Dec 16:00
   Bonus usage on top of plan: $452.77
-  On-demand usage: off
 ```
 
 ## Usage
@@ -36,6 +36,24 @@ quota --no-email       hide account emails
 quota -v               show where each number came from
 quota --plain          no color, ASCII bars (automatic when piped)
 ```
+
+### Pace
+
+Each meter with a known window shows whether you'll run out before it resets, assuming usage keeps the average rate it has had since the window started.
+
+| Tag | Projected use at reset |
+|---|---|
+| `▼▼ well below pace` | under 50% |
+| `▼  below pace` | 50–90% |
+| `●  on pace` | 90–110% |
+| `▲  above pace` | 110–150% |
+| `▲▲ well above pace` | over 150% |
+| `■  limit reached` | already at 100% |
+| `·  too early` | less than 10% of the window gone and less than 10% used |
+
+Above pace, the line shows when you'd hit the limit, with the reset after it: `full in ~31m (16:31) · resets 17:15`. `--plain` uses `vv v = ^ ^^ !! .` for the symbols.
+
+Window lengths come from Codex directly. Claude's are fixed (5h session, 7-day weekly), and Cursor's come from the billing cycle. Meters with no window, like Claude's extra usage, get no tag. The projection is a straight line, so a busy morning reads as "above pace" even if you stop at lunch. `--json` includes it as `pace: { status, projectedPercent, fullAt }`.
 
 Exit code is 0 when every account answered, 1 when at least one failed, 2 when no account matched the filter.
 
@@ -171,6 +189,7 @@ Claude Code on macOS stores its login in the Keychain, not in `.credentials.json
 src/index.ts              CLI arguments, runs providers in parallel, prints
 src/config.ts             config file and Claude folder discovery
 src/render.ts             bars, colors, reset times
+src/pace.ts               pace projection from percent and window
 src/providers/claude.ts   claude auth status + OAuth usage endpoint
 src/providers/codex.ts    JSON-RPC client for codex app-server
 src/providers/cursor.ts   Cursor editor/CLI login + api2 dashboard API

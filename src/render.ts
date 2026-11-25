@@ -1,4 +1,4 @@
-import type { AccountUsage, Meter } from "./types";
+import type { AccountUsage, Meter, PaceStatus } from "./types";
 
 export interface RenderOptions {
   color: boolean;
@@ -46,26 +46,52 @@ function bar(pct: number, opts: RenderOptions): string {
   return tint(full.repeat(filled)) + c.dim(empty.repeat(BAR_WIDTH - filled));
 }
 
-function meterLine(m: Meter, labelWidth: number, opts: RenderOptions): string {
+const PACE_WIDTH = 18;
+
+const PACE: Record<PaceStatus, { unicode: string; ascii: string; text: string; tone: "green" | "yellow" | "red" | "dim" }> = {
+  early: { unicode: "·", ascii: ".", text: "too early", tone: "dim" },
+  "well-below": { unicode: "▼▼", ascii: "vv", text: "well below pace", tone: "green" },
+  below: { unicode: "▼", ascii: "v", text: "below pace", tone: "green" },
+  on: { unicode: "●", ascii: "=", text: "on pace", tone: "yellow" },
+  above: { unicode: "▲", ascii: "^", text: "above pace", tone: "red" },
+  "well-above": { unicode: "▲▲", ascii: "^^", text: "well above pace", tone: "red" },
+  reached: { unicode: "■", ascii: "!!", text: "limit reached", tone: "red" },
+};
+
+function paceTag(m: Meter, opts: RenderOptions): string {
+  if (!m.pace) return " ".repeat(PACE_WIDTH);
+  const p = PACE[m.pace.status];
+  const text = `${(opts.unicode ? p.unicode : p.ascii).padEnd(2)} ${p.text}`.padEnd(PACE_WIDTH);
+  return paint(opts)[p.tone](text);
+}
+
+function meterLine(m: Meter, labelWidth: number, showPace: boolean, opts: RenderOptions): string {
   const c = paint(opts);
   const parts = [`  ${m.label.padEnd(labelWidth)}`];
   if (m.percent != null) {
     const pct = `${Math.round(m.percent)}%`.padStart(4);
     parts.push(bar(m.percent, opts), m.percent >= 100 ? c.red(pct) : pct);
+    if (showPace) parts.push(paceTag(m, opts));
   }
   if (m.detail) parts.push(m.detail);
-  if (m.resetsAt) parts.push(c.dim(`resets in ${relative(m.resetsAt)} (${absolute(m.resetsAt)})`));
-  return parts.join("  ");
+  const full = m.pace?.fullAt;
+  if (full && m.resetsAt) {
+    parts.push(c.red(`full in ~${relative(full)} (${absolute(full)})`) + c.dim(` · resets ${absolute(m.resetsAt)}`));
+  } else if (m.resetsAt) {
+    parts.push(c.dim(`resets in ${relative(m.resetsAt)} (${absolute(m.resetsAt)})`));
+  }
+  return parts.join("  ").trimEnd();
 }
 
 export function render(accounts: AccountUsage[], opts: RenderOptions): string {
   const c = paint(opts);
   const labelWidth = Math.max(14, ...accounts.flatMap((a) => a.meters.map((m) => m.label.length)));
+  const showPace = accounts.some((a) => a.meters.some((m) => m.pace));
   const blocks = accounts.map((a) => {
     const meta = [a.plan, opts.showEmail ? a.email : undefined].filter(Boolean).join(" · ");
     const lines = [c.bold(c.cyan(a.name)) + (meta ? `  ${c.dim(meta)}` : "")];
     if (a.error) lines.push(`  ${c.red(`${opts.unicode ? "✗" : "x"} ${a.error}`)}`);
-    for (const m of a.meters) lines.push(meterLine(m, labelWidth, opts));
+    for (const m of a.meters) lines.push(meterLine(m, labelWidth, showPace, opts));
     for (const n of a.notes) lines.push(`  ${c.dim(n)}`);
     if (!a.error && !a.meters.length && !a.notes.length) lines.push(`  ${c.dim("No limits reported")}`);
     if (opts.verbose) lines.push(`  ${c.dim(`source: ${a.source}`)}`);

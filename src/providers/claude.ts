@@ -91,20 +91,37 @@ function limitLabel(l: Limit): string {
 
 const date = (s?: string | null) => (s ? new Date(s) : undefined);
 
+const HOUR = 3_600_000;
+const SESSION_MS = 5 * HOUR;
+const WEEK_MS = 7 * 24 * HOUR;
+
+/** The API doesn't send window lengths, but they're fixed per kind. */
+function windowMs(kind: string): number | undefined {
+  if (kind === "session") return SESSION_MS;
+  if (kind.startsWith("weekly")) return WEEK_MS;
+  return undefined;
+}
+
+function meter(label: string, percent: number, resets: string | null | undefined, ms: number | undefined): Meter {
+  const resetsAt = date(resets);
+  const windowStart = resetsAt && ms ? new Date(resetsAt.getTime() - ms) : undefined;
+  return { label, percent, resetsAt, windowStart };
+}
+
 function meters(u: UsageResponse): Meter[] {
   if (u.limits?.length) {
-    return u.limits.map((l) => ({ label: limitLabel(l), percent: l.percent, resetsAt: date(l.resets_at) }));
+    return u.limits.map((l) => meter(limitLabel(l), l.percent, l.resets_at, windowMs(l.kind)));
   }
   // Older response shape.
-  const legacy: [keyof UsageResponse, string][] = [
-    ["five_hour", "Session (5h)"],
-    ["seven_day", "Weekly"],
-    ["seven_day_opus", "Weekly · Opus"],
-    ["seven_day_sonnet", "Weekly · Sonnet"],
+  const legacy: [keyof UsageResponse, string, number][] = [
+    ["five_hour", "Session (5h)", SESSION_MS],
+    ["seven_day", "Weekly", WEEK_MS],
+    ["seven_day_opus", "Weekly · Opus", WEEK_MS],
+    ["seven_day_sonnet", "Weekly · Sonnet", WEEK_MS],
   ];
-  return legacy.flatMap(([key, label]) => {
+  return legacy.flatMap(([key, label, ms]) => {
     const w = u[key] as Window | null | undefined;
-    return w ? [{ label, percent: w.utilization, resetsAt: date(w.resets_at) }] : [];
+    return w ? [meter(label, w.utilization, w.resets_at, ms)] : [];
   });
 }
 
