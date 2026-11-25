@@ -47,7 +47,7 @@ I wanted each provider's own CLI to be the source. That works for Codex. It only
 |---|---|---|
 | Codex | `codex app-server`, calling `account/read` and `account/rateLimits/read` over stdio JSON-RPC | The official CLI protocol. Codex refreshes its own token, so quota never touches `~/.codex/auth.json`. |
 | Claude | `claude auth status --json` for plan and email. Limits come from `https://api.anthropic.com/api/oauth/usage`, called with the token in `<configDir>/.credentials.json`. | Claude Code has no non-interactive usage command. `claude -p "/usage"` gets sent to the model as a normal prompt and costs quota. The endpoint is the one the interactive `/usage` screen uses. |
-| Cursor | The Cursor editor's login, read from its `state.vscdb` SQLite file in read-only mode, then `https://cursor.com/api/usage-summary`. | Neither the editor nor `cursor-agent` prints usage. This is the endpoint behind cursor.com/dashboard. |
+| Cursor | The Cursor editor's login, read from its `state.vscdb` SQLite file in read-only mode, then `https://cursor.com/api/usage-summary`. Without an editor login, the `agent` CLI's login (`%APPDATA%\cursor\auth.dpapi` on Windows, decrypted with DPAPI; `~/.config/cursor/auth.json` on Linux), then `DashboardService` on `https://api2.cursor.sh`. | Neither the editor nor the `agent` CLI prints usage. `usage-summary` is the endpoint behind cursor.com/dashboard, and it rejects CLI tokens. The api2 endpoints are what the clients themselves call. |
 
 The Claude and Cursor endpoints are internal. They can change without notice, and when they do this tool breaks until someone updates the parser.
 
@@ -80,7 +80,7 @@ Each provider also needs a login on this machine:
 
 - **Claude.** Each account needs its own Claude Code config folder with a login in it. The default account lives in `~\.claude`. A second account usually lives in a folder like `~\.claude_personal`, used by starting Claude with `CLAUDE_CONFIG_DIR` pointing at it. A folder counts as logged in when it contains `.credentials.json`.
 - **Codex.** `codex login` with a ChatGPT account. API-key logins have no plan limits to show.
-- **Cursor.** Sign in to the Cursor editor itself. Logging in to `cursor-agent` alone isn't enough, since quota reads the editor's session.
+- **Cursor.** Sign in to the Cursor editor, or run `agent login` for the CLI. Either login works.
 
 You can skip any provider you don't use (see step 4).
 
@@ -157,8 +157,8 @@ Every account should show at least one bar. If an account shows a red `✗` line
 | `Login expired` / `Token rejected` (Claude) | Start `claude` with that account once so it refreshes the token. |
 | `` `codex` CLI not found on PATH `` | Install Codex or set `"codex": false`. |
 | `Not logged in. Run codex login.` | Run `codex login`. |
-| `No Cursor app login found` | Sign in to the Cursor editor, or set `"cursor": false`. |
-| `Cursor rejected the session` | Open the Cursor editor so it refreshes its login. |
+| `No Cursor login found` | Sign in to the Cursor editor or run `agent login`, or set `"cursor": false`. |
+| `Cursor rejected the session` | Open the Cursor editor or run `agent login` to refresh the login. |
 | `HTTP 4xx/5xx` | The provider changed or broke its endpoint. Check `quota --json` and update the matching file in `src/providers/`. |
 
 ## macOS limitation
@@ -173,7 +173,7 @@ src/config.ts             config file and Claude folder discovery
 src/render.ts             bars, colors, reset times
 src/providers/claude.ts   claude auth status + OAuth usage endpoint
 src/providers/codex.ts    JSON-RPC client for codex app-server
-src/providers/cursor.ts   Cursor state.vscdb + usage-summary
+src/providers/cursor.ts   Cursor editor/CLI login + api2 dashboard API
 ```
 
 Every provider returns the same `AccountUsage` shape from `src/types.ts`, so adding a provider means writing one fetch function and registering it in `src/index.ts`.
