@@ -25,6 +25,17 @@ function jwtPayload(token: string): { sub?: string; exp?: number } {
   return JSON.parse(Buffer.from(part, "base64url").toString("utf8"));
 }
 
+/** Sets the billing-cycle start on every meter, for pace. Falls back to one month before the reset. */
+function setCycleStart(result: AccountUsage, start: Date | undefined, resetsAt: Date | undefined): void {
+  if (!resetsAt) return;
+  let s = start && !Number.isNaN(start.getTime()) ? start : undefined;
+  if (!s) {
+    s = new Date(resetsAt);
+    s.setMonth(s.getMonth() - 1);
+  }
+  for (const m of result.meters) if (m.resetsAt) m.windowStart = s;
+}
+
 function tokenExpired(token: string): boolean {
   try {
     const { exp } = jwtPayload(token);
@@ -39,6 +50,7 @@ function tokenExpired(token: string): boolean {
 interface Bucket { enabled?: boolean; used?: number; limit?: number | null; remaining?: number | null }
 
 interface UsageSummary {
+  billingCycleStart?: string;
   billingCycleEnd?: string;
   membershipType?: string;
   isUnlimited?: boolean;
@@ -140,6 +152,7 @@ async function fetchViaEditor(
     }
     const team = u.teamUsage?.onDemand;
     if (team?.enabled) result.notes.push(`Team on-demand: ${cents(team.used)}${team.limit != null ? ` / ${cents(team.limit)}` : ""}`);
+    setCycleStart(result, u.billingCycleStart ? new Date(u.billingCycleStart) : undefined, resetsAt);
   } catch (e) {
     result.error = errorMessage(e);
   }
@@ -149,6 +162,7 @@ async function fetchViaEditor(
 // ==== CLI login: auth.dpapi / auth.json + api2.cursor.sh DashboardService ====
 
 interface PeriodUsage {
+  billingCycleStart?: string;
   billingCycleEnd?: string;
   planUsage?: {
     totalSpend?: number;
@@ -300,6 +314,7 @@ async function fetchViaCli(session: { token: string; email?: string }, result: A
 
     const st = status?.usageLimitPolicyStatus;
     if (st?.isInSlowPool) result.notes.push(st.trayLabel ?? "Over the limit: requests run in the slow queue");
+    setCycleStart(result, u.billingCycleStart ? new Date(Number(u.billingCycleStart)) : undefined, resetsAt);
   } catch (e) {
     result.error = e instanceof AuthError ? "Cursor rejected the CLI session. Run `agent login` to refresh it." : errorMessage(e);
   }

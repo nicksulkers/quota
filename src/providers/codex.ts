@@ -100,11 +100,11 @@ function snapshotMeters(s: RateLimitSnapshot): Meter[] {
   const prefix = s.limitId && s.limitId !== "codex" ? `${s.limitName ?? s.limitId} · ` : "";
   return [s.primary, s.secondary]
     .filter((w): w is RateLimitWindow => !!w)
-    .map((w) => ({
-      label: prefix + windowLabel(w),
-      percent: w.usedPercent,
-      resetsAt: w.resetsAt ? new Date(w.resetsAt * 1000) : undefined,
-    }));
+    .map((w) => {
+      const resetsAt = w.resetsAt ? new Date(w.resetsAt * 1000) : undefined;
+      const windowStart = resetsAt && w.windowDurationMins ? new Date(resetsAt.getTime() - w.windowDurationMins * 60_000) : undefined;
+      return { label: prefix + windowLabel(w), percent: w.usedPercent, resetsAt, windowStart };
+    });
 }
 
 export async function fetchCodex(label = "Codex"): Promise<AccountUsage> {

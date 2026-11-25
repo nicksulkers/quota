@@ -4,6 +4,7 @@ import { CONFIG_PATH, loadConfig } from "./config";
 import { fetchClaude } from "./providers/claude";
 import { fetchCodex } from "./providers/codex";
 import { fetchCursor } from "./providers/cursor";
+import { computePace } from "./pace";
 import { render } from "./render";
 import type { AccountUsage } from "./types";
 
@@ -88,6 +89,9 @@ const tty = process.stdout.isTTY && !values.json;
 if (tty) process.stderr.write("Fetching usage…\r");
 const results = await Promise.all(selected.map((j) => j.run()));
 if (tty) process.stderr.write("\x1b[2K\r");
+
+const now = new Date();
+for (const r of results) for (const m of r.meters) m.pace = computePace(m, now);
 
 if (values.json) {
   console.log(JSON.stringify(results, null, 2));
